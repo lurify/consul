@@ -371,9 +371,8 @@ func (s *HTTPServer) AgentDeregisterCheck(resp http.ResponseWriter, req *http.Re
 }
 
 func (s *HTTPServer) AgentCheckPass(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	// todo(fs): why GET?
-	if req.Method != "GET" {
-		return nil, MethodNotAllowedError{req.Method, []string{"GET"}}
+	if req.Method != "PUT" {
+		return nil, MethodNotAllowedError{req.Method, []string{"PUT"}}
 	}
 
 	checkID := types.CheckID(strings.TrimPrefix(req.URL.Path, "/v1/agent/check/pass/"))
@@ -394,9 +393,8 @@ func (s *HTTPServer) AgentCheckPass(resp http.ResponseWriter, req *http.Request)
 }
 
 func (s *HTTPServer) AgentCheckWarn(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	// todo(fs): why GET?
-	if req.Method != "GET" {
-		return nil, MethodNotAllowedError{req.Method, []string{"GET"}}
+	if req.Method != "PUT" {
+		return nil, MethodNotAllowedError{req.Method, []string{"PUT"}}
 	}
 
 	checkID := types.CheckID(strings.TrimPrefix(req.URL.Path, "/v1/agent/check/warn/"))
@@ -417,9 +415,8 @@ func (s *HTTPServer) AgentCheckWarn(resp http.ResponseWriter, req *http.Request)
 }
 
 func (s *HTTPServer) AgentCheckFail(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	// todo(fs): why GET?
-	if req.Method != "GET" {
-		return nil, MethodNotAllowedError{req.Method, []string{"GET"}}
+	if req.Method != "PUT" {
+		return nil, MethodNotAllowedError{req.Method, []string{"PUT"}}
 	}
 
 	checkID := types.CheckID(strings.TrimPrefix(req.URL.Path, "/v1/agent/check/fail/"))
