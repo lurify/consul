@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/agent/ae"
 	"github.com/hashicorp/consul/agent/consul"
+	"github.com/hashicorp/consul/agent/local"
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/agent/systemd"
 	"github.com/hashicorp/consul/agent/token"
@@ -107,7 +108,7 @@ type Agent struct {
 
 	// state stores a local representation of the node,
 	// services and checks. Used for anti-entropy.
-	state *localState
+	state *local.State
 
 	// sync manages the synchronization of the local
 	// and the remote state.
@@ -270,7 +271,18 @@ func (a *Agent) Start() error {
 	triggerCh := make(chan struct{}, 1)
 
 	// create the local state
-	a.state = NewLocalState(c, a.logger, a.tokens, triggerCh)
+	lc := local.Config{
+		AdvertiseAddr:       c.AdvertiseAddr,
+		CheckUpdateInterval: c.CheckUpdateInterval,
+		Datacenter:          c.Datacenter,
+		NodeID:              c.NodeID,
+		NodeName:            c.NodeName,
+		TaggedAddresses:     map[string]string{},
+	}
+	for k, v := range c.TaggedAddresses {
+		lc.TaggedAddresses[k] = v
+	}
+	a.state = local.NewState(lc, a.logger, a.tokens, triggerCh)
 
 	// create the state synchronization manager which performs
 	// regular and on-demand state synchronizations (anti-entropy).
@@ -308,7 +320,7 @@ func (a *Agent) Start() error {
 		}
 
 		a.delegate = server
-		a.state.delegate = server
+		a.state.SetDelegate(server)
 		a.sync.ClusterSize = func() int { return len(server.LANMembers()) }
 	} else {
 		client, err := consul.NewClientLogger(consulCfg, a.logger)
@@ -317,7 +329,7 @@ func (a *Agent) Start() error {
 		}
 
 		a.delegate = client
-		a.state.delegate = client
+		a.state.SetDelegate(client)
 		a.sync.ClusterSize = func() int { return len(client.LANMembers()) }
 	}
 
@@ -1968,15 +1980,13 @@ func (a *Agent) GossipEncrypted() bool {
 
 // Stats is used to get various debugging state from the sub-systems
 func (a *Agent) Stats() map[string]map[string]string {
-	toString := func(v uint64) string {
-		return strconv.FormatUint(v, 10)
-	}
 	stats := a.delegate.Stats()
 	stats["agent"] = map[string]string{
-		"check_monitors": toString(uint64(len(a.checkMonitors))),
-		"check_ttls":     toString(uint64(len(a.checkTTLs))),
-		"checks":         toString(uint64(len(a.state.checks))),
-		"services":       toString(uint64(len(a.state.services))),
+		"check_monitors": strconv.Itoa(len(a.checkMonitors)),
+		"check_ttls":     strconv.Itoa(len(a.checkTTLs)),
+	}
+	for k, v := range a.state.Stats() {
+		stats["agent"][k] = v
 	}
 
 	revision := a.config.Revision
@@ -2096,7 +2106,7 @@ func (a *Agent) loadServices(conf *Config) error {
 		}
 		serviceID := p.Service.ID
 
-		if _, ok := a.state.services[serviceID]; ok {
+		if a.state.Service(serviceID) != nil {
 			// Purge previously persisted service. This allows config to be
 			// preferred over services persisted from the API.
 			a.logger.Printf("[DEBUG] agent: service %q exists, not restoring from %q",
@@ -2175,7 +2185,7 @@ func (a *Agent) loadChecks(conf *Config) error {
 		}
 		checkID := p.Check.CheckID
 
-		if _, ok := a.state.checks[checkID]; ok {
+		if a.state.Check(checkID) != nil {
 			// Purge previously persisted check. This allows config to be
 			// preferred over persisted checks from the API.
 			a.logger.Printf("[DEBUG] agent: check %q exists, not restoring from %q",
@@ -2233,26 +2243,17 @@ func (a *Agent) restoreCheckState(snap map[types.CheckID]*structs.HealthCheck) {
 // loadMetadata loads node metadata fields from the agent config and
 // updates them on the local agent.
 func (a *Agent) loadMetadata(conf *Config) error {
-	a.state.Lock()
-	defer a.state.Unlock()
-
-	for key, value := range conf.Meta {
-		a.state.metadata[key] = value
+	meta := map[string]string{}
+	for k, v := range conf.Meta {
+		meta[k] = v
 	}
-
-	a.state.metadata[structs.MetaSegmentKey] = conf.Segment
-
-	a.state.changeMade()
-
-	return nil
+	meta[structs.MetaSegmentKey] = conf.Segment
+	return a.state.LoadMetadata(meta)
 }
 
 // unloadMetadata resets the local metadata state
 func (a *Agent) unloadMetadata() {
-	a.state.Lock()
-	defer a.state.Unlock()
-
-	a.state.metadata = make(map[string]string)
+	a.state.UnloadMetadata()
 }
 
 // serviceMaintCheckID returns the ID of a given service's maintenance check
