@@ -50,7 +50,7 @@ func TestAgent_Services(t *testing.T) {
 		Tags:    []string{"master"},
 		Port:    5000,
 	}
-	a.state.AddService(srv1, "")
+	a.State.AddService(srv1, "")
 
 	req, _ := http.NewRequest("GET", "/v1/agent/services", nil)
 	obj, err := a.srv.AgentServices(nil, req)
@@ -77,7 +77,7 @@ func TestAgent_Services_ACLFilter(t *testing.T) {
 		Tags:    []string{"master"},
 		Port:    5000,
 	}
-	a.state.AddService(srv1, "")
+	a.State.AddService(srv1, "")
 
 	t.Run("no token", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", "/v1/agent/services", nil)
@@ -115,7 +115,7 @@ func TestAgent_Checks(t *testing.T) {
 		Name:    "mysql",
 		Status:  api.HealthPassing,
 	}
-	a.state.AddCheck(chk1, "")
+	a.State.AddCheck(chk1, "")
 
 	req, _ := http.NewRequest("GET", "/v1/agent/checks", nil)
 	obj, err := a.srv.AgentChecks(nil, req)
@@ -142,7 +142,7 @@ func TestAgent_Checks_ACLFilter(t *testing.T) {
 		Name:    "mysql",
 		Status:  api.HealthPassing,
 	}
-	a.state.AddCheck(chk1, "")
+	a.State.AddCheck(chk1, "")
 
 	t.Run("no token", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", "/v1/agent/checks", nil)
@@ -292,8 +292,8 @@ func TestAgent_Reload(t *testing.T) {
 	a := NewTestAgent(t.Name(), cfg)
 	defer a.Shutdown()
 
-	if _, ok := a.state.services["redis"]; !ok {
-		t.Fatalf("missing redis service")
+	if a.State.Service("redis") == nil {
+		t.Fatal("missing redis service")
 	}
 
 	cfg2 := TestConfig()
@@ -305,8 +305,8 @@ func TestAgent_Reload(t *testing.T) {
 	if err := a.ReloadConfig(cfg2); err != nil {
 		t.Fatalf("got error %v want nil", err)
 	}
-	if _, ok := a.state.services["redis-reloaded"]; !ok {
-		t.Fatalf("missing redis-reloaded service")
+	if a.State.Service("redis-reloaded") == nil {
+		t.Fatal("missing redis-reloaded service")
 	}
 
 	for _, wp := range cfg.WatchPlans {
@@ -681,7 +681,7 @@ func TestAgent_RegisterCheck(t *testing.T) {
 
 	// Ensure we have a check mapping
 	checkID := types.CheckID("test")
-	if _, ok := a.state.Checks()[checkID]; !ok {
+	if _, ok := a.State.Checks()[checkID]; !ok {
 		t.Fatalf("missing test check")
 	}
 
@@ -690,12 +690,12 @@ func TestAgent_RegisterCheck(t *testing.T) {
 	}
 
 	// Ensure the token was configured
-	if token := a.state.CheckToken(checkID); token == "" {
+	if token := a.State.CheckToken(checkID); token == "" {
 		t.Fatalf("missing token")
 	}
 
 	// By default, checks start in critical state.
-	state := a.state.Checks()[checkID]
+	state := a.State.Checks()[checkID]
 	if state.Status != api.HealthCritical {
 		t.Fatalf("bad: %v", state)
 	}
@@ -723,7 +723,7 @@ func TestAgent_RegisterCheck_Passing(t *testing.T) {
 
 	// Ensure we have a check mapping
 	checkID := types.CheckID("test")
-	if _, ok := a.state.Checks()[checkID]; !ok {
+	if _, ok := a.State.Checks()[checkID]; !ok {
 		t.Fatalf("missing test check")
 	}
 
@@ -731,7 +731,7 @@ func TestAgent_RegisterCheck_Passing(t *testing.T) {
 		t.Fatalf("missing test check ttl")
 	}
 
-	state := a.state.Checks()[checkID]
+	state := a.State.Checks()[checkID]
 	if state.Status != api.HealthPassing {
 		t.Fatalf("bad: %v", state)
 	}
@@ -804,7 +804,7 @@ func TestAgent_DeregisterCheck(t *testing.T) {
 	}
 
 	// Ensure we have a check mapping
-	if _, ok := a.state.Checks()["test"]; ok {
+	if _, ok := a.State.Checks()["test"]; ok {
 		t.Fatalf("have test check")
 	}
 }
@@ -855,7 +855,7 @@ func TestAgent_PassCheck(t *testing.T) {
 	}
 
 	// Ensure we have a check mapping
-	state := a.state.Checks()["test"]
+	state := a.State.Checks()["test"]
 	if state.Status != api.HealthPassing {
 		t.Fatalf("bad: %v", state)
 	}
@@ -908,7 +908,7 @@ func TestAgent_WarnCheck(t *testing.T) {
 	}
 
 	// Ensure we have a check mapping
-	state := a.state.Checks()["test"]
+	state := a.State.Checks()["test"]
 	if state.Status != api.HealthWarning {
 		t.Fatalf("bad: %v", state)
 	}
@@ -961,7 +961,7 @@ func TestAgent_FailCheck(t *testing.T) {
 	}
 
 	// Ensure we have a check mapping
-	state := a.state.Checks()["test"]
+	state := a.State.Checks()["test"]
 	if state.Status != api.HealthCritical {
 		t.Fatalf("bad: %v", state)
 	}
@@ -1025,7 +1025,7 @@ func TestAgent_UpdateCheck(t *testing.T) {
 				t.Fatalf("expected 200, got %d", resp.Code)
 			}
 
-			state := a.state.Checks()["test"]
+			state := a.State.Checks()["test"]
 			if state.Status != c.Status || state.Output != c.Output {
 				t.Fatalf("bad: %v", state)
 			}
@@ -1053,7 +1053,7 @@ func TestAgent_UpdateCheck(t *testing.T) {
 		// Since we append some notes about truncating, we just do a
 		// rough check that the output buffer was cut down so this test
 		// isn't super brittle.
-		state := a.state.Checks()["test"]
+		state := a.State.Checks()["test"]
 		if state.Status != api.HealthPassing || len(state.Output) > 2*CheckBufSize {
 			t.Fatalf("bad: %v", state)
 		}
@@ -1152,12 +1152,12 @@ func TestAgent_RegisterService(t *testing.T) {
 	}
 
 	// Ensure the servie
-	if _, ok := a.state.Services()["test"]; !ok {
+	if _, ok := a.State.Services()["test"]; !ok {
 		t.Fatalf("missing test service")
 	}
 
 	// Ensure we have a check mapping
-	checks := a.state.Checks()
+	checks := a.State.Checks()
 	if len(checks) != 3 {
 		t.Fatalf("bad: %v", checks)
 	}
@@ -1167,7 +1167,7 @@ func TestAgent_RegisterService(t *testing.T) {
 	}
 
 	// Ensure the token was configured
-	if token := a.state.ServiceToken("test"); token == "" {
+	if token := a.State.ServiceToken("test"); token == "" {
 		t.Fatalf("missing token")
 	}
 }
@@ -1260,11 +1260,11 @@ func TestAgent_DeregisterService(t *testing.T) {
 	}
 
 	// Ensure we have a check mapping
-	if _, ok := a.state.Services()["test"]; ok {
+	if _, ok := a.State.Services()["test"]; ok {
 		t.Fatalf("have test service")
 	}
 
-	if _, ok := a.state.Checks()["test"]; ok {
+	if _, ok := a.State.Checks()["test"]; ok {
 		t.Fatalf("have test check")
 	}
 }
@@ -1373,13 +1373,13 @@ func TestAgent_ServiceMaintenance_Enable(t *testing.T) {
 
 	// Ensure the maintenance check was registered
 	checkID := serviceMaintCheckID("test")
-	check, ok := a.state.Checks()[checkID]
+	check, ok := a.State.Checks()[checkID]
 	if !ok {
 		t.Fatalf("should have registered maintenance check")
 	}
 
 	// Ensure the token was added
-	if token := a.state.CheckToken(checkID); token != "mytoken" {
+	if token := a.State.CheckToken(checkID); token != "mytoken" {
 		t.Fatalf("expected 'mytoken', got '%s'", token)
 	}
 
@@ -1420,7 +1420,7 @@ func TestAgent_ServiceMaintenance_Disable(t *testing.T) {
 
 	// Ensure the maintenance check was removed
 	checkID := serviceMaintCheckID("test")
-	if _, ok := a.state.Checks()[checkID]; ok {
+	if _, ok := a.State.Checks()[checkID]; ok {
 		t.Fatalf("should have removed maintenance check")
 	}
 }
@@ -1496,13 +1496,13 @@ func TestAgent_NodeMaintenance_Enable(t *testing.T) {
 	}
 
 	// Ensure the maintenance check was registered
-	check, ok := a.state.Checks()[structs.NodeMaint]
+	check, ok := a.State.Checks()[structs.NodeMaint]
 	if !ok {
 		t.Fatalf("should have registered maintenance check")
 	}
 
 	// Check that the token was used
-	if token := a.state.CheckToken(structs.NodeMaint); token != "mytoken" {
+	if token := a.State.CheckToken(structs.NodeMaint); token != "mytoken" {
 		t.Fatalf("expected 'mytoken', got '%s'", token)
 	}
 
@@ -1531,7 +1531,7 @@ func TestAgent_NodeMaintenance_Disable(t *testing.T) {
 	}
 
 	// Ensure the maintenance check was removed
-	if _, ok := a.state.Checks()[structs.NodeMaint]; ok {
+	if _, ok := a.State.Checks()[structs.NodeMaint]; ok {
 		t.Fatalf("should have removed maintenance check")
 	}
 }
@@ -1587,7 +1587,7 @@ func TestAgent_RegisterCheck_Service(t *testing.T) {
 	}
 
 	// Ensure we have a check mapping
-	result := a.state.Checks()
+	result := a.State.Checks()
 	if _, ok := result["service:memcache"]; !ok {
 		t.Fatalf("missing memcached check")
 	}
