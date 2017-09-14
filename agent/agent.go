@@ -204,6 +204,7 @@ func New(c *Config) (*Agent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Invalid HTTP bind address: %s", err)
 	}
+
 	acls, err := newACLManager(c)
 	if err != nil {
 		return nil, err

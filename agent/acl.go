@@ -90,7 +90,7 @@ func newACLManager(config *Config) (*aclManager, error) {
 			},
 		},
 	}
-	master, err := acl.New(acl.DenyAll(), policy)
+	master, err := acl.New(acl.DenyAll(), policy, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (m *aclManager) lookupACL(a *Agent, id string) (acl.ACL, error) {
 			}
 		}
 
-		acl, err := acl.New(parent, reply.Policy)
+		acl, err := acl.New(parent, reply.Policy, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -251,14 +251,14 @@ func (a *Agent) vetServiceRegister(token string, service *structs.NodeService) e
 	}
 
 	// Vet the service itself.
-	if !rule.ServiceWrite(service.Service) {
+	if !rule.ServiceWrite(service.Service, nil) {
 		return acl.ErrPermissionDenied
 	}
 
 	// Vet any service that might be getting overwritten.
 	services := a.state.Services()
 	if existing, ok := services[service.ID]; ok {
-		if !rule.ServiceWrite(existing.Service) {
+		if !rule.ServiceWrite(existing.Service, nil) {
 			return acl.ErrPermissionDenied
 		}
 	}
@@ -281,7 +281,7 @@ func (a *Agent) vetServiceUpdate(token string, serviceID string) error {
 	// Vet any changes based on the existing services's info.
 	services := a.state.Services()
 	if existing, ok := services[serviceID]; ok {
-		if !rule.ServiceWrite(existing.Service) {
+		if !rule.ServiceWrite(existing.Service, nil) {
 			return acl.ErrPermissionDenied
 		}
 	} else {
@@ -305,11 +305,11 @@ func (a *Agent) vetCheckRegister(token string, check *structs.HealthCheck) error
 
 	// Vet the check itself.
 	if len(check.ServiceName) > 0 {
-		if !rule.ServiceWrite(check.ServiceName) {
+		if !rule.ServiceWrite(check.ServiceName, nil) {
 			return acl.ErrPermissionDenied
 		}
 	} else {
-		if !rule.NodeWrite(a.config.NodeName) {
+		if !rule.NodeWrite(a.config.NodeName, nil) {
 			return acl.ErrPermissionDenied
 		}
 	}
@@ -318,11 +318,11 @@ func (a *Agent) vetCheckRegister(token string, check *structs.HealthCheck) error
 	checks := a.state.Checks()
 	if existing, ok := checks[check.CheckID]; ok {
 		if len(existing.ServiceName) > 0 {
-			if !rule.ServiceWrite(existing.ServiceName) {
+			if !rule.ServiceWrite(existing.ServiceName, nil) {
 				return acl.ErrPermissionDenied
 			}
 		} else {
-			if !rule.NodeWrite(a.config.NodeName) {
+			if !rule.NodeWrite(a.config.NodeName, nil) {
 				return acl.ErrPermissionDenied
 			}
 		}
@@ -346,11 +346,11 @@ func (a *Agent) vetCheckUpdate(token string, checkID types.CheckID) error {
 	checks := a.state.Checks()
 	if existing, ok := checks[checkID]; ok {
 		if len(existing.ServiceName) > 0 {
-			if !rule.ServiceWrite(existing.ServiceName) {
+			if !rule.ServiceWrite(existing.ServiceName, nil) {
 				return acl.ErrPermissionDenied
 			}
 		} else {
-			if !rule.NodeWrite(a.config.NodeName) {
+			if !rule.NodeWrite(a.config.NodeName, nil) {
 				return acl.ErrPermissionDenied
 			}
 		}
