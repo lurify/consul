@@ -19,8 +19,8 @@ func TestOperator_Raft_ListPeers(t *testing.T) {
 	a := agent.NewTestAgent(t.Name(), nil)
 	defer a.Shutdown()
 
-	expected := fmt.Sprintf("%s  127.0.0.1:%d  127.0.0.1:%d  leader  true   2",
-		a.Config.NodeName, a.Config.Ports.Server, a.Config.Ports.Server)
+	expected := fmt.Sprintf("%s  %s  127.0.0.1:%d  leader  true   3",
+		a.Config.NodeName, a.Config.NodeID, a.Config.Ports.Server)
 
 	// Test the legacy mode with 'consul operator raft -list-peers'
 	{
